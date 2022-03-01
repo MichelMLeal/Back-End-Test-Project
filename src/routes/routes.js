@@ -1,6 +1,10 @@
 const express = require('express')
 const moment = require('moment')
 const router = express.Router()
+const getinvestmentService = require('../services/getInvestmentService')
+const getinvestmentsService = require('../services/getInvestmentsService')
+const createInvestmentService = require('../services/createInvestmentService')
+const uodateInvestmentService = require('../services/updateInvestmentService')
 
 let investments = []
 
@@ -10,23 +14,29 @@ router.use(function timeLog(req, res, next) {
   next()
 })
 
-router.get('/', function (req, res) {
+router.get('/', async function (req, res) {
   try {
-    return res.json(investments)
+    const { id } = req.body
+
+    const result = await getinvestmentService.getInvestment(id)
+
+    return res.json(result)
   } catch (error) {
     return res.status(400).json({ error: error.message })
   }
 })
 
-router.get('/list', function (req, res) {
+router.get('/list', async function (req, res) {
   try {
-    return res.json(investments)
+    const results = await getinvestmentsService.getInvestments()
+
+    return res.json(results)
   } catch (error) {
     return res.status(400).json({ error: error.message })
   }
 })
 
-router.post('/investment', (req, res) => {
+router.post('/investment', async (req, res) => {
   try {
     let { date, investment } = req.body
     const investmentDate = new Date(date)
@@ -49,29 +59,37 @@ router.post('/investment', (req, res) => {
 
     investments.push(date, investmentInitial, parseFloat(investment.toFixed(2)))
 
-    return res.json({ investments })
+    const mainn = await createInvestmentService.createInvestments(
+      investmentDate,
+      investmentInitial,
+      parseFloat(investment.toFixed(2))
+    )
+
+    return res.json(mainn)
   } catch (error) {
     return res.status(400).json({ error: error.message })
   }
 })
 
-router.put('/withdrawal', function (req, res) {
+router.put('/withdrawal', async function (req, res) {
   try {
-    const { date, withdrawal } = req.body
-    const investmentDate = new Date(date)
+    const { date, withdrawal, id } = req.body
+    const withrawalDate = new Date(date)
     const dateNow = new Date()
 
-    if (withdrawal != investments[2]) {
+    const investments = await getinvestmentService.getInvestment(id)
+
+    if (withdrawal != investments.currentBalance) {
       throw new Error('withdrawal must be equal to investment')
     }
-    if (investmentDate > dateNow) {
+    if (withrawalDate > dateNow) {
       throw new Error('Date is in the future')
     }
 
-    let profit = investments[2] - investments[1]
+    let profit = investments.currentBalance - investments.investment
     let taxes = 0
 
-    var diff = moment(dateNow, 'YYYY-MM-DD').diff(moment(investmentDate, 'YYYY-MM-DD'))
+    var diff = moment(dateNow, 'YYYY-MM-DD').diff(moment(withrawalDate, 'YYYY-MM-DD'))
     const diffMonth = moment.duration(diff).asMonths()
 
     if (parseInt(diffMonth) > 2) {
@@ -81,13 +99,18 @@ router.put('/withdrawal', function (req, res) {
     } else if (parseInt(diffMonth) < 1) {
       taxes = profit * 0.225
     }
-    //investments[2] = 0
 
     const profitFinal = parseFloat(profit.toFixed(2)) - parseFloat(taxes.toFixed(2))
 
-    investments.push(parseFloat(profitFinal.toFixed(2)), parseFloat(taxes.toFixed(2)))
+    const result = await uodateInvestmentService.updateInvestments(
+      9,
+      withrawalDate,
+      withdrawal,
+      parseFloat(profitFinal.toFixed(2)),
+      parseFloat(taxes.toFixed(2))
+    )
 
-    return res.json({ investments })
+    return res.json(result)
   } catch (error) {
     return res.status(400).json({ error: error.message })
   }
